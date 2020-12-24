@@ -15,12 +15,12 @@ public class PlainRSADemo {
     private static BigInteger decrypt(BigInteger c, BigInteger d, BigInteger modulus) {
         return modExp(c, d, modulus);
     }
-    private static BigInteger encrypt2(BigInteger m, BigInteger e, BigInteger modulus,BigInteger R,BigInteger NN) {
-        return modExp2(m, e, modulus, R, NN);
+    private static BigInteger encrypt2(BigInteger m, BigInteger e, BigInteger modulus,BigInteger R,BigInteger NN,int exp_length,BigInteger bb) {
+        return modExpmontgomery(m, e, modulus, R, NN,exp_length,bb);
     }
 
-    private static BigInteger decrypt2(BigInteger c, BigInteger d, BigInteger modulus,BigInteger R,BigInteger NN) {
-        return modExp2(c, d, modulus, R, NN);
+    private static BigInteger decrypt2(BigInteger c, BigInteger d, BigInteger modulus,BigInteger R,BigInteger NN,int exp_length,BigInteger bb) {
+        return modExpmontgomery(c, d, modulus, R, NN,exp_length, bb);
     }
 
     private  static BigInteger createR(BigInteger modulus){
@@ -30,32 +30,26 @@ public class PlainRSADemo {
         return R;
     }
 
-    private  static BigInteger mont(BigInteger aa, BigInteger bb, BigInteger N,BigInteger R, BigInteger NN){
+    private  static BigInteger mont(BigInteger aa, BigInteger bb, BigInteger N,BigInteger R, BigInteger NN,int R_length){
         BigInteger t=aa.multiply(bb);
-        BigInteger m=t.multiply(NN).and(R.subtract(BigInteger.valueOf(1)));
-        t=t.add(m.multiply(N)).shiftRight(2048);
+        BigInteger m=t.multiply(NN).and(R);
+        t=t.add(m.multiply(N)).shiftRight(R_length);
         if(t.compareTo(N)<0)
             return t;
         else
             return t.subtract(N);
     }
 
-    private static BigInteger modExp2(BigInteger a, BigInteger exponent, BigInteger N,BigInteger R,BigInteger NN) {
-        BigInteger result = a;
-        BigInteger aa,bb;
-        int expBitlength = exponent.bitLength();
+    private static BigInteger modExpmontgomery(BigInteger aa, BigInteger exponent, BigInteger N,BigInteger R,BigInteger NN,int expBitlength,BigInteger bb) {
+        R=R.subtract(BigInteger.valueOf(1));
+        int R_length=R.bitLength();
         for (int i = expBitlength - 2; i >= 0; i--) {
-             aa=result.multiply(R).mod(N);
-             result=mont(aa,aa,N,R,NN);
-//            result = result.multiply(result).mod(N);
+             aa=mont(aa,aa,N,R,NN,R_length);
             if (exponent.testBit(i)) {
-                aa=result.multiply(R).mod(N);
-                bb=a.multiply(R).mod(N);
-                result=mont(aa,bb,N,R,NN);
-               // result = result.multiply(a).mod(N);
+                aa=mont(aa,bb,N,R,NN,R_length);
             }
         }
-        return result;
+        return aa;
     }
 
 
@@ -93,43 +87,29 @@ public class PlainRSADemo {
         long startTime = System.nanoTime();
         BigInteger m2 = decrypt(c, d, modulus);
         long stopTime = System.nanoTime();
-        System.out.println(stopTime - startTime);
-        BigInteger R=createR(modulus);
-        BigInteger NN=modulus.modInverse(R).multiply(BigInteger.valueOf(-1));
-        BigInteger c2 = encrypt2(m, e, modulus,R,NN);
+        System.out.println("Time for RSA without montgomery:"+(stopTime - startTime));
+        BigInteger R=createR(modulus); //creatin R
+        BigInteger NN=modulus.modInverse(R).multiply(BigInteger.valueOf(-1)); //N_prime
+        int e_length=e.bitLength();
+        int d_length=d.bitLength();
+        BigInteger bb=m.multiply(R).mod(modulus);//b_bar
+        BigInteger aa=m.multiply(R).mod(modulus);// a_bar
+        BigInteger c2 = encrypt2(aa,e , modulus,R,NN,e_length,bb);
+        c2=c2.multiply((R).modInverse(modulus)).mod(modulus);
+        bb=c2.multiply(R).mod(modulus);
+        aa=c2.multiply(R).mod(modulus);
         startTime = System.nanoTime();
-        BigInteger m3 = decrypt2(c2, d, modulus,R,NN);
+        BigInteger m3 = decrypt2(aa, d, modulus,R,NN,d_length,bb);//m3_bar
         stopTime = System.nanoTime();
-        System.out.println(stopTime - startTime);
-        System.out.println("Original message = " + m.toString(16));
-        System.out.println("Ciphertext = " + c.toString(16));
-        System.out.println("Ciphertext2 = " + c2.toString(16));
+        System.out.println("Time for RSA with montgomery:   "+(stopTime - startTime));
+        m3=m3.multiply((R).modInverse(modulus)).mod(modulus);//m3
+        System.out.println("Original message   = " + m.toString(16));
 
-        System.out.println("Decrypted message = " + m2.toString(16));
+        System.out.println("Decrypted message1 = " + m2.toString(16));
         System.out.println("Decrypted message2 = " + m3.toString(16));
 
-        if (!m.equals(m2)) {
+        if (!m.equals(m2) || !m.equals(m3)) {
             System.err.println("There is an error.");
         }
-//         c = encrypt2(m, e, modulus);
-//        BigInteger c2 = encrypt2(m, e, modulus);
-
-//        m2 = decrypt2(c, d, modulus);
-//        System.out.println("Original message = " + m.toString(16));
-//        System.out.println("Ciphertext = " + c.toString(16));
-//        System.out.println("Ciphertext2 = " + c2.toString(16));
-//
-//        System.out.println("Decrypted message = " + m2.toString(16));
-//        if (!m.equals(m2)) {
-//            System.err.println("There is an error.");
-//        }
-
-//        BigInteger z = new BigInteger("7",16);
-//        BigInteger biginteger1 = new BigInteger("8");
-//        BigInteger biginteger2 = new BigInteger("21");
-//        System.out.println(biginteger1.modInverse(biginteger2).multiply(BigInteger.valueOf(-1)));
-
-
     }
-
 }
